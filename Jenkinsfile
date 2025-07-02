@@ -3,8 +3,7 @@ pipeline {
 
     environment {
         VERSION_FILE = ".build_version"
-        IMAGE_NAME = "marammanai/user-service"   // ✅ Défini ici
-        IMAGE_TAG = ""
+        IMAGE_NAME = "marammanai/user-service"
     }
 
     stages {
@@ -14,9 +13,10 @@ pipeline {
             }
         }
 
-        stage('Build & Versioning') {
+        stage('Build & Versioning & Docker') {
             steps {
                 script {
+                    // Read & increment version
                     if (!fileExists(env.VERSION_FILE)) {
                         writeFile file: env.VERSION_FILE, text: "0"
                     }
@@ -26,45 +26,32 @@ pipeline {
                     }
                     version = version.toInteger() + 1
                     writeFile file: env.VERSION_FILE, text: version.toString()
-                    env.IMAGE_TAG = "v${version}"
+                    def imageTag = "v${version}" // local only
 
+                    // Build the JAR
                     sh 'chmod +x mvnw'
                     sh './mvnw clean package -DskipTests'
-                }
-            }
-        }
 
-        stage('Docker Build & Push') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    // Docker build & push
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh """
+                            docker build -t ${env.IMAGE_NAME}:${imageTag} .
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                            docker push ${env.IMAGE_NAME}:${imageTag}
+                        """
+                    }
+
+                    // Prepare YAML
                     sh """
-                        docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push $IMAGE_NAME:$IMAGE_TAG
+                        sed 's|REPLACE_IMAGE|${env.IMAGE_NAME}:${imageTag}|g' k8s/user-deployment.yaml > k8s/deployment-generated.yaml
                     """
+
+                    // Copy YAML
+                    sh 'scp -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa k8s/deployment-generated.yaml root@192.168.56.100:/root/'
+
+                    // Deploy to K8s
+                    sh 'ssh -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa root@192.168.56.100 "kubectl apply -f /root/deployment-generated.yaml"'
                 }
-            }
-        }
-
-        stage('Prepare YAML') {
-            steps {
-                script {
-                    sh """
-                        sed 's|REPLACE_IMAGE|$IMAGE_NAME:$IMAGE_TAG|g' k8s/user-deployment.yaml > k8s/deployment-generated.yaml
-                    """
-                }
-            }
-        }
-
-        stage('Copy YAML to K8s Master') {
-            steps {
-                sh 'scp -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa k8s/deployment-generated.yaml root@192.168.56.100:/root/'
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh 'ssh -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa root@192.168.56.100 "kubectl apply -f /root/deployment-generated.yaml"'
             }
         }
     }
@@ -74,7 +61,7 @@ pipeline {
             echo '❌ Échec du pipeline'
         }
         success {
-            echo "✅ Déploiement de $IMAGE_NAME:$IMAGE_TAG réussi"
+            echo '✅ Pipeline exécuté avec succès'
         }
     }
 }
