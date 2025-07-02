@@ -5,7 +5,6 @@ pipeline {
         VERSION_FILE = ".build_version"
         IMAGE_NAME = "marammanai/user-service"   // ✅ Défini ici
         IMAGE_TAG = ""
-        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-credentials')
     }
 
     stages {
