@@ -2,7 +2,9 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "marammanai/user-service:latest"
+        IMAGE_NAME = "marammanai/user-service"
+        IMAGE_TAG = "latest"
+        FULL_IMAGE = "${IMAGE_NAME}:${IMAGE_TAG}"
         K8S_MASTER = "ceph1@192.168.13.11"
         DEPLOY_YAML = "k8s-user-deployment.yaml"
     }
@@ -14,10 +16,10 @@ pipeline {
             }
         }
 
-        stage('Build App') {
+        stage('Build JAR') {
             steps {
                 sh '''
-                    echo "🛠️ Build du projet Java"
+                    echo "🔧 Build Maven..."
                     chmod +x mvnw
                     ./mvnw clean package -DskipTests
                 '''
@@ -27,8 +29,8 @@ pipeline {
         stage('Docker Build') {
             steps {
                 sh '''
-                    echo "🐳 Construction de l'image Docker"
-                    docker build -t $IMAGE_NAME .
+                    echo "🐳 Docker build"
+                    docker build -t $FULL_IMAGE .
                 '''
             }
         }
@@ -37,25 +39,34 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
-                        echo "📤 Connexion à Docker Hub & push"
+                        echo "🔐 Docker login"
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push $IMAGE_NAME
+                        docker push $FULL_IMAGE
                     '''
                 }
+            }
+        }
+
+        stage('Replace Image in YAML') {
+            steps {
+                sh '''
+                    echo "📝 Remplacement de l'image dans le fichier YAML"
+                    sed -i "s|__IMAGE__|$FULL_IMAGE|g" $DEPLOY_YAML
+                '''
             }
         }
 
         stage('Copy YAML') {
             steps {
                 sh '''
-                    echo "📁 Copie du fichier YAML vers le master Kubernetes"
+                    echo "📁 Copie YAML vers master"
                     ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
                     scp $DEPLOY_YAML $K8S_MASTER:/home/ceph1/$DEPLOY_YAML
                 '''
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy K8s') {
             steps {
                 sh '''
                     echo "🚀 Déploiement sur Kubernetes"
@@ -67,10 +78,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ user-service déployé avec succès !"
+            echo "✅ Déploiement user-service terminé !"
         }
         failure {
-            echo "❌ Échec du déploiement user-service."
+            echo "❌ Échec du pipeline user-service !"
         }
     }
 }
