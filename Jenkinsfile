@@ -4,7 +4,7 @@ pipeline {
     environment {
         IMAGE_NAME = "marammanai/user-service:latest"
         K8S_MASTER = "ceph1@192.168.13.11"
-        DEPLOY_YAML = "k8s-user-deployment.yaml"
+        DEPLOY_YAML = "k8s-user-deployment.yaml"  // YAML uniquement du déploiement + service
     }
 
     stages {
@@ -38,7 +38,7 @@ pipeline {
         stage('Copy YAML to Kubernetes Master') {
             steps {
                 sh '''
-                    echo "📁 Copie du fichier YAML"
+                    echo "📁 Copie du fichier YAML de déploiement"
                     ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
                     scp $DEPLOY_YAML $K8S_MASTER:/home/ceph1/$DEPLOY_YAML
                 '''
