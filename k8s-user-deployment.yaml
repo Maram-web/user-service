@@ -20,9 +20,18 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: REPLACE_IMAGE  # Remplacé dynamiquement par Jenkins
+          image: __IMAGE__  # remplacé par Jenkins
           ports:
             - containerPort: 8089
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:mysql://mysql:3306/ceph_user_service?createDatabaseIfNotExist=true
+            - name: SPRING_DATASOURCE_USERNAME
+              value: root
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: root
+            - name: EUREKA_URL
+              value: http://localhost:8761/eureka/
 ---
 apiVersion: v1
 kind: Service

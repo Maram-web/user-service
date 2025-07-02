@@ -2,11 +2,10 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_REPO = "marammanai/user-service"
-        BUILD_TAG = "v${BUILD_ID}"  // Utilise le numéro de build Jenkins pour un tag unique
-        IMAGE_NAME = "${DOCKER_REPO}:${BUILD_TAG}"
+        VERSION_FILE = ".build_version"
         K8S_MASTER = "ceph1@192.168.13.11"
-        DEPLOY_YAML = "k8s-user-deployment.yaml"
+        USER_DEPLOY = "k8s-user-deployment.yaml"
+        MYSQL_DEPLOY = "k8s-mysql-deployment.yaml"
     }
 
     stages {
@@ -16,10 +15,17 @@ pipeline {
             }
         }
 
-        stage('Build JAR') {
+        stage('Build & Versioning') {
             steps {
-                sh 'chmod +x mvnw'
-                sh './mvnw clean package -DskipTests'
+                script {
+                    def version = readFile(env.VERSION_FILE).trim().toInteger() + 1
+                    def imageName = "marammanai/user-service:v${version}"
+                    writeFile file: env.VERSION_FILE, text: version.toString()
+                    env.IMAGE_NAME = imageName
+
+                    sh 'chmod +x mvnw'
+                    sh './mvnw clean package -DskipTests'
+                }
             }
         }
 
@@ -35,31 +41,39 @@ pipeline {
             }
         }
 
-        stage('Update & Copy YAML') {
+        stage('Prepare YAML') {
             steps {
-                script {
-                    sh """
-                        sed 's|REPLACE_IMAGE|$IMAGE_NAME|g' $DEPLOY_YAML > temp.yaml
-                        ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
-                        scp temp.yaml $K8S_MASTER:/home/ceph1/$DEPLOY_YAML
-                    """
-                }
+                sh """
+                    ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
+                    sed -i 's|__IMAGE__|'${IMAGE_NAME}'|g' $USER_DEPLOY
+                """
             }
         }
 
-        stage('Deploy') {
+        stage('Copy YAML to K8s Master') {
             steps {
-                sh "ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML"
+                sh """
+                    scp $USER_DEPLOY $MYSQL_DEPLOY $K8S_MASTER:/home/ceph1/
+                """
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh """
+                    ssh $K8S_MASTER "kubectl apply -f /home/ceph1/$MYSQL_DEPLOY"
+                    ssh $K8S_MASTER "kubectl apply -f /home/ceph1/$USER_DEPLOY"
+                """
             }
         }
     }
 
     post {
         success {
-            echo "✅ user-service deployed! Image: $IMAGE_NAME"
+            echo "✅ Déploiement réussi (MySQL + User Service)"
         }
         failure {
-            echo "❌ Deployment failed"
+            echo "❌ Échec du pipeline"
         }
     }
 }
