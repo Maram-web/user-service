@@ -32,7 +32,7 @@ spec:
             - name: SPRING_DATASOURCE_PASSWORD
               value: root
             - name: EUREKA_URL
-              value: http://localhost:8761/eureka/
+              value: http://discovery-service.discovery.svc.cluster.local:8761/eureka/
 ---
 apiVersion: v1
 kind: Service

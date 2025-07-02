@@ -25,10 +25,7 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh """
-                        echo "🐳 Building Docker image"
                         docker build -t $IMAGE_NAME .
-
-                        echo "📤 Pushing to Docker Hub"
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                         docker push $IMAGE_NAME
                     """
@@ -39,7 +36,6 @@ pipeline {
         stage('Copy YAML to K8s Master') {
             steps {
                 sh '''
-                    echo "📁 Copying deployment YAML to Kubernetes master"
                     ssh-keyscan -H 192.168.56.100 >> ~/.ssh/known_hosts
                     scp k8s-user-deployment.yaml $K8S_MASTER:/root/
                 '''
@@ -49,7 +45,6 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                    echo "🚀 Applying deployment on Kubernetes"
                     ssh $K8S_MASTER "kubectl apply -f /root/k8s-user-deployment.yaml"
                 '''
             }
@@ -58,10 +53,10 @@ pipeline {
 
     post {
         success {
-            echo '✅ Déploiement réussi de user-service (latest)'
+            echo '✅ user-service déployé avec succès !'
         }
         failure {
-            echo '❌ Le pipeline a échoué'
+            echo '❌ Échec du pipeline.'
         }
     }
 }
