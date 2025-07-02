@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: marammanai/user-service:latest
+          image: REPLACE_IMAGE  # Remplacé dynamiquement par Jenkins
           ports:
             - containerPort: 8089
 ---
@@ -37,5 +37,3 @@ spec:
     - port: 8089
       targetPort: 8089
       nodePort: 30022
-
-#      nodePort: 30091     # Port accessible depuis l’extérieur (VM, navigateur)
