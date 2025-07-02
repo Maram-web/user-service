@@ -2,10 +2,9 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "marammanai/user-service"
-        DOCKER_CREDENTIALS_ID = 'docker-hub-creds'
+        IMAGE_NAME = "marammanai/user-service:latest"
+        K8S_MASTER = "root@192.168.56.100"
         DEPLOY_YAML = "k8s-user-deployment.yaml"
-        K8S_MASTER = "ceph1@192.168.13.11"
     }
 
     stages {
@@ -15,46 +14,24 @@ pipeline {
             }
         }
 
-        stage('Build & Versioning') {
+        stage('Build with Maven') {
             steps {
-                script {
-                    def versionFile = '.build_version'
-                    def version = 'v1'
-
-                    if (fileExists(versionFile)) {
-                        version = readFile(versionFile).trim()
-                        def versionNumber = version.replace("v", "").toInteger() + 1
-                        version = "v${versionNumber}"
-                    }
-
-                    writeFile(file: versionFile, text: version)
-                    IMAGE_TAG = "${DOCKER_IMAGE}:${version}"
-                    env.IMAGE_TAG = IMAGE_TAG
-
-                    sh "chmod +x mvnw"
-                    sh "./mvnw clean package -DskipTests"
-                }
+                sh 'chmod +x mvnw'
+                sh './mvnw clean package -DskipTests'
             }
         }
 
         stage('Docker Build & Push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker build -t $IMAGE_TAG .
-                        docker push $IMAGE_TAG
-                    '''
-                }
-            }
-        }
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo "🐳 Building Docker image"
+                        docker build -t $IMAGE_NAME .
 
-        stage('Prepare YAML') {
-            steps {
-                script {
-                    def yamlContent = readFile("${DEPLOY_YAML}")
-                    yamlContent = yamlContent.replace("__IMAGE__", IMAGE_TAG)
-                    writeFile(file: 'generated.yaml', text: yamlContent)
+                        echo "📤 Pushing to Docker Hub"
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $IMAGE_NAME
+                    """
                 }
             }
         }
@@ -62,8 +39,9 @@ pipeline {
         stage('Copy YAML to K8s Master') {
             steps {
                 sh '''
-                    ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
-                    scp generated.yaml $K8S_MASTER:/home/ceph1/generated-user.yaml
+                    echo "📁 Copying deployment YAML to Kubernetes master"
+                    ssh-keyscan -H 192.168.56.100 >> ~/.ssh/known_hosts
+                    scp k8s-user-deployment.yaml $K8S_MASTER:/root/
                 '''
             }
         }
@@ -71,7 +49,8 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                    ssh $K8S_MASTER kubectl apply -f /home/ceph1/generated-user.yaml
+                    echo "🚀 Applying deployment on Kubernetes"
+                    ssh $K8S_MASTER "kubectl apply -f /root/k8s-user-deployment.yaml"
                 '''
             }
         }
@@ -79,10 +58,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Déploiement réussi avec tag : ${env.IMAGE_TAG}"
+            echo '✅ Déploiement réussi de user-service (latest)'
         }
         failure {
-            echo "❌ Échec du pipeline"
+            echo '❌ Le pipeline a échoué'
         }
     }
 }

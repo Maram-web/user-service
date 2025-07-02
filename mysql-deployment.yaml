@@ -1,9 +1,4 @@
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: user
----
-apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: mysql-pvc
@@ -33,6 +28,7 @@ spec:
       containers:
         - name: mysql
           image: mysql:8
+          imagePullPolicy: Always
           env:
             - name: MYSQL_ROOT_PASSWORD
               value: root
