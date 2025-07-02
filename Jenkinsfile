@@ -5,13 +5,13 @@ pipeline {
         IMAGE_NAME = "marammanai/user-service:latest"
         K8S_MASTER = "ceph1@192.168.13.11"
         DEPLOY_YAML = "k8s-user-deployment.yaml"
+        FORCE_BUILD = "true"  // Force la construction même au premier run
     }
 
     stages {
         stage('Checkout') {
             steps {
                 git branch: 'user-service', url: 'https://github.com/Maram-web/user-service.git'
-                // ou 'user-service' si la branche ne s'appelle pas 'main'
             }
         }
 
@@ -21,8 +21,17 @@ pipeline {
                     def changes = sh(script: "git diff --name-only HEAD~1 HEAD", returnStdout: true).trim()
                     echo "📂 Fichiers modifiés:\n${changes}"
 
-                    env.NEED_BUILD_JAR = (changes.contains("src/") || changes.contains("pom.xml")) ? "true" : "false"
-                    env.NEED_BUILD_DOCKER = (changes.contains("Dockerfile") || changes.contains("src/")) ? "true" : "false"
+                    env.NEED_BUILD_JAR = (
+                        env.FORCE_BUILD == "true" ||
+                        changes.contains("src/") ||
+                        changes.contains("pom.xml")
+                    ) ? "true" : "false"
+
+                    env.NEED_BUILD_DOCKER = (
+                        env.FORCE_BUILD == "true" ||
+                        changes.contains("Dockerfile") ||
+                        changes.contains("src/")
+                    ) ? "true" : "false"
                 }
             }
         }
@@ -41,7 +50,7 @@ pipeline {
                 expression { env.NEED_BUILD_DOCKER == "true" }
             }
             steps {
-                sh "docker build -t $IMAGE_NAME ."
+                sh 'docker build -t $IMAGE_NAME .'
             }
         }
 
@@ -70,17 +79,17 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sh "ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML"
+                sh 'ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML'
             }
         }
     }
 
     post {
         success {
-            echo "✅ Déploiement terminé avec succès"
+            echo "✅ user-service deployed!"
         }
         failure {
-            echo "❌ Le pipeline a échoué"
+            echo "❌ user-service failed!"
         }
     }
 }
