@@ -5,7 +5,8 @@ pipeline {
         IMAGE_NAME = "marammanai/user-service:latest"
         K8S_MASTER = "ceph1@192.168.13.11"
         DEPLOY_YAML = "k8s-user-deployment.yaml"
-        FORCE_BUILD = "true"  // Force la construction même au premier run
+        NAMESPACE = "user"
+        FORCE_BUILD = "true" // Forcer le build au premier run
     }
 
     stages {
@@ -41,7 +42,6 @@ pipeline {
                 expression { env.NEED_BUILD_JAR == "true" }
             }
             steps {
-
                 sh 'chmod +x mvnw'
                 sh './mvnw clean package -DskipTests'
             }
@@ -79,19 +79,22 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy to Kubernetes') {
             steps {
-                sh 'ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML'
+                sh '''
+                    ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML
+                    ssh $K8S_MASTER kubectl rollout status deployment/user-service -n user
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "✅ user-service deployed!"
+            echo "✅ user-service deployed successfully in namespace 'user'!"
         }
         failure {
-            echo "❌ user-service failed!"
+            echo "❌ user-service deployment failed!"
         }
     }
 }
