@@ -18,16 +18,19 @@ pipeline {
         stage('Build & Versioning') {
             steps {
                 script {
+                    // Si le fichier n'existe pas, on le crée avec "0"
+                    if (!fileExists(env.VERSION_FILE)) {
+                        writeFile file: env.VERSION_FILE, text: "0"
+                    }
                     def version = readFile(env.VERSION_FILE).trim().toInteger() + 1
-                    def imageName = "marammanai/user-service:v${version}"
                     writeFile file: env.VERSION_FILE, text: version.toString()
-                    env.IMAGE_NAME = imageName
 
                     sh 'chmod +x mvnw'
                     sh './mvnw clean package -DskipTests'
                 }
             }
         }
+
 
         stage('Docker Build & Push') {
             steps {
