@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        VERSION_FILE = ".build_version"
-        IMAGE_NAME = "marammanai/user-service"
-        IMAGE_TAG = ""
+        IMAGE_NAME = "marammanai/user-service:latest"
+        K8S_MASTER = "ceph1@192.168.13.11"
+        DEPLOY_YAML = "k8s-user-deployment.yaml"
     }
 
     stages {
@@ -14,67 +14,63 @@ pipeline {
             }
         }
 
-        stage('Build & Versioning') {
+        stage('Build App') {
             steps {
-                script {
-                    if (!fileExists(env.VERSION_FILE)) {
-                        writeFile file: env.VERSION_FILE, text: "0"
-                    }
-                    def version = readFile(env.VERSION_FILE).trim()
-                    if (!version.isInteger()) {
-                        error "❌ .build_version contains invalid value: ${version}"
-                    }
-                    version = version.toInteger() + 1
-                    writeFile file: env.VERSION_FILE, text: version.toString()
-                    env.IMAGE_TAG = "v${version}"
-
-                    sh 'chmod +x mvnw'
-                    sh './mvnw clean package -DskipTests'
-                }
+                sh '''
+                    echo "🛠️ Build du projet Java"
+                    chmod +x mvnw
+                    ./mvnw clean package -DskipTests
+                '''
             }
         }
 
-        stage('Docker Build & Push') {
+        stage('Docker Build') {
+            steps {
+                sh '''
+                    echo "🐳 Construction de l'image Docker"
+                    docker build -t $IMAGE_NAME .
+                '''
+            }
+        }
+
+        stage('Docker Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh """
-                        docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                    sh '''
+                        echo "📤 Connexion à Docker Hub & push"
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push $IMAGE_NAME:$IMAGE_TAG
-                    """
+                        docker push $IMAGE_NAME
+                    '''
                 }
             }
         }
 
-        stage('Prepare YAML') {
+        stage('Copy YAML') {
             steps {
-                script {
-                    sh """
-                        sed 's|REPLACE_IMAGE|$IMAGE_NAME:$IMAGE_TAG|g' k8s/user-deployment.yaml > k8s/deployment-generated.yaml
-                    """
-                }
+                sh '''
+                    echo "📁 Copie du fichier YAML vers le master Kubernetes"
+                    ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
+                    scp $DEPLOY_YAML $K8S_MASTER:/home/ceph1/$DEPLOY_YAML
+                '''
             }
         }
 
-        stage('Copy YAML to K8s Master') {
+        stage('Deploy') {
             steps {
-                sh 'scp -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa k8s/deployment-generated.yaml root@192.168.56.100:/root/'
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh 'ssh -o StrictHostKeyChecking=no -i /root/.ssh/id_rsa root@192.168.56.100 "kubectl apply -f /root/deployment-generated.yaml"'
+                sh '''
+                    echo "🚀 Déploiement sur Kubernetes"
+                    ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML
+                '''
             }
         }
     }
 
     post {
-        failure {
-            echo '❌ Échec du pipeline'
-        }
         success {
-            echo "✅ Déploiement de $IMAGE_NAME:$IMAGE_TAG réussi"
+            echo "✅ user-service déployé avec succès !"
+        }
+        failure {
+            echo "❌ Échec du déploiement user-service."
         }
     }
 }
