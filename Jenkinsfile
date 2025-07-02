@@ -2,11 +2,10 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "marammanai/user-service"
-        IMAGE_TAG = "latest"
-        FULL_IMAGE = "${IMAGE_NAME}:${IMAGE_TAG}"
-        K8S_MASTER = "ceph1@192.168.13.11"
+        DOCKER_IMAGE = "marammanai/user-service"
+        DOCKER_CREDENTIALS_ID = 'docker-hub-creds'
         DEPLOY_YAML = "k8s-user-deployment.yaml"
+        K8S_MASTER = "ceph1@192.168.13.11"
     }
 
     stages {
@@ -16,61 +15,63 @@ pipeline {
             }
         }
 
-        stage('Build JAR') {
+        stage('Build & Versioning') {
             steps {
-                sh '''
-                    echo "🔧 Build Maven..."
-                    chmod +x mvnw
-                    ./mvnw clean package -DskipTests
-                '''
+                script {
+                    def versionFile = '.build_version'
+                    def version = 'v1'
+
+                    if (fileExists(versionFile)) {
+                        version = readFile(versionFile).trim()
+                        def versionNumber = version.replace("v", "").toInteger() + 1
+                        version = "v${versionNumber}"
+                    }
+
+                    writeFile(file: versionFile, text: version)
+                    IMAGE_TAG = "${DOCKER_IMAGE}:${version}"
+                    env.IMAGE_TAG = IMAGE_TAG
+
+                    sh "chmod +x mvnw"
+                    sh "./mvnw clean package -DskipTests"
+                }
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build & Push') {
             steps {
-                sh '''
-                    echo "🐳 Docker build"
-                    docker build -t $FULL_IMAGE .
-                '''
-            }
-        }
-
-        stage('Docker Push') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
-                        echo "🔐 Docker login"
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push $FULL_IMAGE
+                        docker build -t $IMAGE_TAG .
+                        docker push $IMAGE_TAG
                     '''
                 }
             }
         }
 
-        stage('Replace Image in YAML') {
+        stage('Prepare YAML') {
             steps {
-                sh '''
-                    echo "📝 Remplacement de l'image dans le fichier YAML"
-                    sed -i "s|__IMAGE__|$FULL_IMAGE|g" $DEPLOY_YAML
-                '''
+                script {
+                    def yamlContent = readFile("${DEPLOY_YAML}")
+                    yamlContent = yamlContent.replace("__IMAGE__", IMAGE_TAG)
+                    writeFile(file: 'generated.yaml', text: yamlContent)
+                }
             }
         }
 
-        stage('Copy YAML') {
+        stage('Copy YAML to K8s Master') {
             steps {
                 sh '''
-                    echo "📁 Copie YAML vers master"
                     ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
-                    scp $DEPLOY_YAML $K8S_MASTER:/home/ceph1/$DEPLOY_YAML
+                    scp generated.yaml $K8S_MASTER:/home/ceph1/generated-user.yaml
                 '''
             }
         }
 
-        stage('Deploy K8s') {
+        stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                    echo "🚀 Déploiement sur Kubernetes"
-                    ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML
+                    ssh $K8S_MASTER kubectl apply -f /home/ceph1/generated-user.yaml
                 '''
             }
         }
@@ -78,10 +79,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Déploiement user-service terminé !"
+            echo "✅ Déploiement réussi avec tag : ${env.IMAGE_TAG}"
         }
         failure {
-            echo "❌ Échec du pipeline user-service !"
+            echo "❌ Échec du pipeline"
         }
     }
 }

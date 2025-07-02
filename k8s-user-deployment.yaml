@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: __IMAGE__
+          image: __IMAGE__  # Remplacé dynamiquement par Jenkins
           ports:
             - containerPort: 8089
           env:
