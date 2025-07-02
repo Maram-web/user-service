@@ -41,6 +41,8 @@ pipeline {
                 expression { env.NEED_BUILD_JAR == "true" }
             }
             steps {
+
+                sh 'chmod +x mvnw'
                 sh './mvnw clean package -DskipTests'
             }
         }
