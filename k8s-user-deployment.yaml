@@ -21,7 +21,7 @@ spec:
       containers:
         - name: user-service
           image: marammanai/user-service:latest
-          imagePullPolicy: Always  # 🔁 force pull à chaque déploiement
+          imagePullPolicy: Always
           ports:
             - containerPort: 8089
           env:
@@ -48,19 +48,7 @@ spec:
   ports:
     - port: 8089
       targetPort: 8089
-      nodePort: 30022  # accès externe
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mysql-pvc
-  namespace: user
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
+      nodePort: 30022
 ---
 apiVersion: apps/v1
 kind: Deployment
