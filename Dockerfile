@@ -17,7 +17,7 @@ COPY --from=build /app/target/*.jar app.jar
 
 # Copie des fichiers de configuration Spring
 COPY --from=build /app/src/main/resources/application.properties ./config/
-COPY --from=build /app/src/main/resources/application-k8s.properties ./config/
+COPY --from=build /app/src/main/resources/application-k8s.properties ./config/application-k8s.properties
 
 # Activation du profil k8s par défaut
 ENV SPRING_PROFILES_ACTIVE=k8s
