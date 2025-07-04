@@ -14,6 +14,7 @@ import tn.esprit.userservice.entity.User;
 import tn.esprit.userservice.repository.UserRepository;
 import tn.esprit.userservice.security.JwtService;
 
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -28,25 +29,29 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
 
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         System.out.println("📥 Login request: " + request.getEmail());
-
         System.out.println("🔥 REGISTER hit !");
 
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            return ResponseEntity.badRequest().body("Email already taken");
+            return ResponseEntity.badRequest().body(
+                    Map.of("error", "Email already taken")
+            );
         }
+
         User user = User.builder()
-                .username(request.getUsername()) // ✅ ajoute cette ligne
+                .username(request.getUsername())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role("USER")
                 .build();
 
-
         userRepository.save(user);
-        return ResponseEntity.ok("User registered successfully");
+        return ResponseEntity.ok(
+                Map.of("message", "User registered successfully")
+        );
     }
+
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
