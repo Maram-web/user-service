@@ -56,7 +56,9 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:4200",             // ✅ Angular local
-                "http://192.168.13.11:30080"         // ✅ Déploiement gateway
+                "http://192.168.13.11:30090"    ,
+                "http://192.168.13.11:*"     // (optionnel) tous les ports sur cette IP
+// ✅ Déploiement gateway
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
