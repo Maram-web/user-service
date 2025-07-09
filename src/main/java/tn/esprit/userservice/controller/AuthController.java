@@ -55,33 +55,33 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         String identifier = request.getIdentifier();
-        Optional<User> userOpt = identifier.contains("@") ?
-                userRepository.findByEmail(identifier) :
-                userRepository.findByUsername(identifier);
+
+        // on utilise ici directement l'identifiant pour Spring Security
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(identifier, request.getPassword())
+        );
+
+        // Rechercher l’utilisateur pour le JWT
+        Optional<User> userOpt = identifier.contains("@")
+                ? userRepository.findByEmail(identifier)
+                : userRepository.findByUsername(identifier);
 
         if (userOpt.isEmpty()) {
             return ResponseEntity.status(401).body("Invalid credentials");
         }
 
-        User user = userOpt.get();
-
-        // Authentification toujours avec email + mot de passe
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword())
-        );
-
-        String token = jwtService.generateToken(user);
+        String token = jwtService.generateToken(userOpt.get()); // JWT généré avec username
         return ResponseEntity.ok(token);
     }
-
 
     @GetMapping("/me")
     public ResponseEntity<User> getCurrentUser(HttpServletRequest request) {
         String token = jwtService.extractTokenFromRequest(request);
-        String email = jwtService.extractUsername(token); // now always email
+        String username = jwtService.extractUsername(token); // ✅ getUsername() = username maintenant
 
-        return userRepository.findByEmail(email)
+        return userRepository.findByUsername(username)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.status(404).build());
     }
+
 }
