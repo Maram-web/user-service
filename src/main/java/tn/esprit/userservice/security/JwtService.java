@@ -22,6 +22,7 @@ public class JwtService {
         return Jwts.builder()
                 .setSubject(user.getEmail()) // ✅ on stocke l'email comme identifiant
                 .claim("role", user.getRole())
+                .claim("username", user.getUsername()) // 👈 Ajout
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationTimeMs))
                 .signWith(key)

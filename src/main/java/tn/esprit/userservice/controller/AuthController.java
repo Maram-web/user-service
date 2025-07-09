@@ -52,10 +52,12 @@ public class AuthController {
         );
     }
 
-
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        Optional<User> userOpt = userRepository.findByEmail(request.getEmail());
+        String identifier = request.getIdentifier(); // peut être email ou username
+        Optional<User> userOpt = identifier.contains("@") ?
+                userRepository.findByEmail(identifier) :
+                userRepository.findByUsername(identifier);
 
         if (userOpt.isEmpty()) {
             return ResponseEntity.status(401).body("Invalid credentials");
@@ -63,12 +65,11 @@ public class AuthController {
 
         User user = userOpt.get();
 
-        // Authentification avec email
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(user.getEmail(), request.getPassword())
         );
 
-        String token = jwtService.generateToken(user);
+        String token = jwtService.generateToken(user); // on met toujours l'email comme subject
         return ResponseEntity.ok(token);
     }
 
