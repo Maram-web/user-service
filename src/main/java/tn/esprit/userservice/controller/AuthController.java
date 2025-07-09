@@ -67,7 +67,7 @@ public class AuthController {
 
         // Authentification toujours avec email + mot de passe
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(user.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword())
         );
 
         String token = jwtService.generateToken(user);
