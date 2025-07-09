@@ -20,9 +20,10 @@ public class JwtService {
 
     public String generateToken(User user) {
         return Jwts.builder()
-                .setSubject(user.getEmail()) // ✅ on stocke l'email comme identifiant
+                .setSubject(user.getUsername()) // ✅ maintenant on utilise le username
+                .claim("email", user.getEmail()) // 👉 si tu veux garder l'email
                 .claim("role", user.getRole())
-//                .claim("username", user.getUsername()) // 👈 Ajout
+
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationTimeMs))
                 .signWith(key)

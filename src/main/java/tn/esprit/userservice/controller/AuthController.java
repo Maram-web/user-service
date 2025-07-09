@@ -54,7 +54,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        String identifier = request.getIdentifier(); // peut être email ou username
+        String identifier = request.getIdentifier();
         Optional<User> userOpt = identifier.contains("@") ?
                 userRepository.findByEmail(identifier) :
                 userRepository.findByUsername(identifier);
@@ -65,13 +65,15 @@ public class AuthController {
 
         User user = userOpt.get();
 
+        // Authentification toujours avec email + mot de passe
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(user.getEmail(), request.getPassword())
         );
 
-        String token = jwtService.generateToken(user); // on met toujours l'email comme subject
+        String token = jwtService.generateToken(user);
         return ResponseEntity.ok(token);
     }
+
 
     @GetMapping("/me")
     public ResponseEntity<User> getCurrentUser(HttpServletRequest request) {
