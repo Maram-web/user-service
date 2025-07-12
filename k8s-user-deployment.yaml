@@ -1,96 +1,96 @@
-  apiVersion: v1
-  kind: Namespace
-  metadata:
-    name: user
-  ---
-  apiVersion: apps/v1
-  kind: Deployment
-  metadata:
-    name: user-service
-    namespace: user
-  spec:
-    replicas: 1
-    selector:
-      matchLabels:
-        app: user-service
-    template:
-      metadata:
-        labels:
-          app: user-service
-      spec:
-        containers:
-          - name: user-service
-            image: marammanai/user-service:latest
-            imagePullPolicy: Always
-            ports:
-              - containerPort: 8089
-            env:
-              - name: SPRING_DATASOURCE_URL
-                value: jdbc:mysql://mysql.user.svc.cluster.local:3306/ceph_user_service?createDatabaseIfNotExist=true
-              - name: SPRING_DATASOURCE_USERNAME
-                value: root
-              - name: SPRING_DATASOURCE_PASSWORD
-                value: root
-              - name: EUREKA_URL
-                value: http://discovery-service.discovery.svc.cluster.local:8761/eureka/
-              - name: SPRING_PROFILE
-                value: k8s
-  ---
-  apiVersion: v1
-  kind: Service
-  metadata:
-    name: user-service
-    namespace: user
-  spec:
-    type: NodePort
-    selector:
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: user
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: user
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
       app: user-service
-    ports:
-      - port: 8089
-        targetPort: 8089
-        nodePort: 30022
-  ---
-  apiVersion: apps/v1
-  kind: Deployment
-  metadata:
-    name: mysql
-    namespace: user
-  spec:
-    replicas: 1
-    selector:
-      matchLabels:
-        app: mysql
-    template:
-      metadata:
-        labels:
-          app: mysql
-      spec:
-        containers:
-          - name: mysql
-            image: mysql:8
-            ports:
-              - containerPort: 3306
-            env:
-              - name: MYSQL_ROOT_PASSWORD
-                value: root
-              - name: MYSQL_DATABASE
-                value: ceph_user_service
-            volumeMounts:
-              - name: mysql-storage
-                mountPath: /var/lib/mysql
-        volumes:
-          - name: mysql-storage
-            persistentVolumeClaim:
-              claimName: mysql-pvc-new
-  ---
-  apiVersion: v1
-  kind: Service
-  metadata:
-    name: mysql
-    namespace: user
-  spec:
-    selector:
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          image: marammanai/user-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8089
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:mysql://mysql.user.svc.cluster.local:3306/ceph_user_service?createDatabaseIfNotExist=true
+            - name: SPRING_DATASOURCE_USERNAME
+              value: root
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: root
+            - name: EUREKA_URL
+              value: http://discovery-service.discovery.svc.cluster.local:8761/eureka/
+            - name: SPRING_PROFILE
+              value: k8s
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: user
+spec:
+  type: NodePort
+  selector:
+    app: user-service
+  ports:
+    - port: 8089
+      targetPort: 8089
+      nodePort: 30022
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: user
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
       app: mysql
-    ports:
-      - port: 3306
-        targetPort: 3306
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: root
+            - name: MYSQL_DATABASE
+              value: ceph_user_service
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc-new
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: user
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
