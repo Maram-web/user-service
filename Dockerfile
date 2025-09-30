@@ -9,7 +9,7 @@ FROM eclipse-temurin:17-jdk
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
-# ✅ Plus besoin de copier manuellement les fichiers config
+#  Plus besoin de copier manuellement les fichiers config
 
 ENV SPRING_PROFILES_ACTIVE=k8s
 ENTRYPOINT ["java", "-jar", "app.jar"]

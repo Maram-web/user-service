@@ -6,8 +6,7 @@ pipeline {
         IMAGE_TAG = "v${TIMESTAMP}"
         IMAGE_NAME = "marammanai/user-service:${IMAGE_TAG}"
         K8S_MASTER = "ceph1@192.168.13.11"
-        DEPLOY_YAML = "k8s-user-deployment.yaml"  // doit référencer l'image dynamiquement
-    }
+        DEPLOY_YAML = "k8s-user-deployment.yaml"  /
 
     stages {
         stage('Checkout') {
@@ -27,7 +26,8 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable:
+                 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
                         echo "📤 Connexion à Docker Hub & push"
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
@@ -49,7 +49,7 @@ pipeline {
         stage('Copy YAML to Kubernetes Master') {
             steps {
                 sh '''
-                    echo "📁 Copie du fichier YAML mis à jour"
+                    echo " Copie du fichier YAML mis à jour"
                     ssh-keyscan -H 192.168.13.11 >> ~/.ssh/known_hosts
                     scp updated-$DEPLOY_YAML $K8S_MASTER:/home/ceph1/$DEPLOY_YAML
                 '''
@@ -59,7 +59,7 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                    echo "🚀 Déploiement sur Kubernetes avec nouvelle image taggée"
+                    echo " Déploiement sur Kubernetes avec nouvelle image taggée"
                     ssh $K8S_MASTER kubectl apply -f /home/ceph1/$DEPLOY_YAML
                 '''
             }
