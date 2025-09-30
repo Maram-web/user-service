@@ -1,4 +1,131 @@
-# --- Service "metrics" SANS toucher à ton NodePort existant ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: user
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-pv-manual
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /mnt/data/mysql
+  persistentVolumeReclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc-manual
+  namespace: user
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: mysql-pv-manual
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: user
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: root
+            - name: MYSQL_DATABASE
+              value: ceph_user_service
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc-manual
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: user
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: user
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          image: marammanai/user-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8089
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:mysql://mysql.user.svc.cluster.local:3306/ceph_user_service?createDatabaseIfNotExist=true
+            - name: SPRING_DATASOURCE_USERNAME
+              value: root
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: root
+            - name: EUREKA_URL
+              value: http://discovery-service.discovery.svc.cluster.local:8761/eureka/
+            - name: SPRING_PROFILE
+              value: k8s
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: user
+spec:
+  type: NodePort
+  selector:
+    app: user-service
+  ports:
+    - port: 8089
+      targetPort: 8089
+      nodePort: 30022
+
+# ===========================
+# AJOUTS POUR PROMETHEUS
+# (sans modifier tes ressources existantes)
+# ===========================
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -12,29 +139,27 @@ spec:
   selector:
     app: user-service
   ports:
-    - name: http              # ⚠️ nom de port requis par le ServiceMonitor
-      port: 8089              # même port que ton container
+    - name: http          # Nom requis par le ServiceMonitor
+      port: 8089
       targetPort: 8089
-
 ---
-# --- ServiceMonitor pour Prometheus Operator ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: user-service
   namespace: monitoring
-  # ⚠️ Selon l’installation, Prometheus peut filtrer par un label "release".
-  # Si tes ServiceMonitors existants ont un label release, ajoute-le ici.
+  # Si votre Prometheus filtre par label "release", décommentez et mettez la bonne valeur :
   # labels:
   #   release: prometheus-operator-kube-p
 spec:
   selector:
     matchLabels:
-      app: user-service        # matche le label du Service ci-dessus
+      app: user-service
       metrics: "true"
   namespaceSelector:
-    matchNames: ["user"]       # namespace où tourne le Service
+    matchNames:
+      - user
   endpoints:
-    - port: http               # doit matcher "name: http" du Service
+    - port: http
       path: /actuator/prometheus
       interval: 30s
