@@ -51,9 +51,13 @@ spec:
             - containerPort: 3306
           env:
             - name: MYSQL_ROOT_PASSWORD
-              value: root
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: password
             - name: MYSQL_DATABASE
               value: ceph_user_service
+          
           volumeMounts:
             - name: mysql-storage
               mountPath: /var/lib/mysql
@@ -99,9 +103,15 @@ spec:
             - name: SPRING_DATASOURCE_URL
               value: jdbc:mysql://mysql.user.svc.cluster.local:3306/ceph_user_service?createDatabaseIfNotExist=true
             - name: SPRING_DATASOURCE_USERNAME
-              value: root
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: username
             - name: SPRING_DATASOURCE_PASSWORD
-              value: root
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: password
             - name: EUREKA_URL
               value: http://discovery-service.discovery.svc.cluster.local:8761/eureka/
             - name: SPRING_PROFILE
